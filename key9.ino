@@ -1,5 +1,4 @@
 
-
 /*
 
   Channels where seen non-encrypted keyboards on: 
@@ -141,11 +140,11 @@ boolean shoutKeystrokes = false;
 //a9399d5fcd,09,08
 // my keyboard channel has been on 0x19, 0x34, 0x05, 0x09, 0x2c
 /* me love you */long time;
-uint8_t channel = 25; // [between 3 and 80]
+uint8_t channel = 50; // [between 3 and 80]
 uint16_t lastSeq = 0;
 
 // all MS keyboard macs appear to begin with 0xCD [we store in LSB]
-uint64_t kbPipe = 0xAALL; // will change, but we use 0xAA to sniff
+uint64_t kbPipe = 0xAALL; // will change, but we use 0xAA to sniff //A9 35 59 8E CD 20 5 1C
 //uint64_t kbPipe = 0xa9399d5fcdLL;
 
 // should we scan for kb or just go based off a known channel/pipe?
@@ -579,15 +578,15 @@ uint8_t n(uint8_t reg, const uint8_t* buf, uint8_t len)
 
 // specifically for sniffing after the scan
 // and transmitting to a secondary device
-/*void setupRadio()
+void setupRadio()
 {
   spl("2setupRadio");
 
   radio.stopListening();
 
   //  radio.openWritingPipe(kbPipe);
-  radio.openWritingPipe(backtraceIt);
-  radio.openReadingPipe(0, backtraceIt);
+  //radio.openWritingPipe(backtraceIt);
+  //radio.openReadingPipe(0, backtraceIt);
   radio.openReadingPipe(1, kbPipe);
 
   radio.setAutoAck(false);
@@ -600,7 +599,7 @@ uint8_t n(uint8_t reg, const uint8_t* buf, uint8_t len)
 
   radio.startListening();
   radio.printDetails();
-}*/
+}
 
 
 /*
@@ -978,7 +977,7 @@ void setup()
 #endif
 
   // make sure to resetup radio after the scan
- // setupRadio();
+  setupRadio();
 }
 
 
