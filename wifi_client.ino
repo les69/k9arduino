@@ -1,10 +1,10 @@
 #include <Adafruit_ESP8266.h>
 #include <SoftwareSerial.h>
-
-#include <aJSON.h>
-#define SSID "Netgear00M" //this must be read from the sd-card
+#define SSID "NETGEAR00" //this must be read from the sd-card
 #define PASS "Orione2000%" //this must be read from the sd-card
-#define HOST "192.168.1.5" //this must be read from the sd-card
+//#define SSID "esp8266_network" //this must be read from the sd-card
+//#define PASS "esp8266_project"
+#define HOST "192.168.1.2" //this must be read from the sd-card
 #define PORT 8000
 #define ESP_RX   3
 #define ESP_TX   4
@@ -12,6 +12,7 @@
 #define URI "/message/new/"
 
 SoftwareSerial softser(ESP_RX, ESP_TX);
+boolean isOffline;
 
 // Must declare output stream before Adafruit_ESP8266 constructor; can be
 // a SoftwareSerial stream, or Serial/Serial1/etc. for UART.
@@ -23,57 +24,61 @@ void setup() {
   softser.begin(9600); // Soft serial connection to ESP8266
   Serial.begin(9600); while (!Serial);
   delay(1000); // UART serial debug
-
-
-
-
+  isOffline = true;
+  
+  
 }
 
 void loop() {
 
-  char buffer[50];
-  boolean isOffline = false;
-  //Serial.print(F("Connecting to WiFi..."));
-  //wifi.println("AT+CWJAP=\"D-Link\",\"Orione2000%\"");
+   isOffline = !wifi.connectToAP(F(SSID), F(PASS));
+   delay(500);
 
-  if (wifi.connectToAP(F(SSID), F(PASS)) || !isOffline) {
+  if (!isOffline) {
 
-    delay(1000);
-    if (wifi.readLine(buffer, sizeof(buffer))) {
-      //Serial.println(buffer);
       wifi.find(); // Discard the 'OK' that follows
-      wifi.println("AT+CIPMUX=0"); // configure for single connection,
-      //we should only be connected to one SMTP server
-      wifi.find();
-      wifi.closeTCP(); // close any open TCP connections
-      wifi.find();
-
-      if (wifi.connectTCP(F(HOST), PORT)) {
-        Serial.print(F("OK\nRequesting page..."));
-
+      delay(500);
+      while (wifi.connectTCP(F(HOST), PORT)) {
         //here we listen for new messages and we send them to our web server
-        while (!isOffline) {
-          aJsonObject* json = aJson.createObject();
-          aJson.addItemToObject(json, "message", aJson.createItem("hello there"));
-          aJson.addItemToObject(json, "user", aJson.createItem("les"));
-          char *json_String = aJson.print(json);
-          wifi.httpPost("192.168.1.5", "/message/new/", aJson.print(json));
-          isOffline = wifi.find(F("ERROR"));
+          char *json_string = createJson("les","hello there from esp8266");
+          delay(500);
+          
+          //we don't want to send null objects
+          if(strlen(json_string) > 2)
+               isOffline = wifi.httpPost(HOST, "/message/new/", json_string);
           delay(100);
+          
+          if(!isOffline){
+             Serial.println(F("Connection fail"));
+             //save data somewhere
+          }
+          free(json_string);
         }
         wifi.closeTCP();
+        delay(500);
       }
-      else { // TCP connect failed
-        Serial.println(F("Connection fail"));
-      }
-    }
-  }
   else{
     //do flash save here
     Serial.println("Flash mode initiated");
+    
+    //at the end we re-try conenction
+    isOffline = wifi.connectToAP(F(SSID), F(PASS));
   }
   delay(5000);
-  //wifi.softReset();
+  //wifi.softReset(); {message:user:}
 
 
+
+}
+char* createJson(const char *user, const char *message){
+
+  char *json = new char[16+strlen(user)+strlen(message)];
+  strcpy(json,"");
+  strcat(json,"{\"message\":\"");
+  strcat(json,message);
+  strcat(json,",\",\"user\":\"");
+  strcat(json,user);
+  strcat(json,"\"}");
+  return json;
+    
 }
